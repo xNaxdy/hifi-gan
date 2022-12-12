@@ -78,7 +78,8 @@ class Generator(torch.nn.Module):
         self.h = h
         self.num_kernels = len(h.resblock_kernel_sizes)
         self.num_upsamples = len(h.upsample_rates)
-        self.conv_pre = weight_norm(Conv1d(80, h.upsample_initial_channel, 7, 1, padding=3))
+        self.conv_pre = weight_norm(
+            Conv1d(h.num_mels, h.upsample_initial_channel, 7, 1, padding=3))
         resblock = ResBlock1 if h.resblock == '1' else ResBlock2
 
         self.ups = nn.ModuleList()
@@ -131,10 +132,14 @@ class DiscriminatorP(torch.nn.Module):
         self.period = period
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList([
-            norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1),
+                   padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(32, 128, (kernel_size, 1),
+                   (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(128, 512, (kernel_size, 1),
+                   (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(512, 1024, (kernel_size, 1),
+                   (stride, 1), padding=(get_padding(5, 1), 0))),
             norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(2, 0))),
         ])
         self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
@@ -144,7 +149,7 @@ class DiscriminatorP(torch.nn.Module):
 
         # 1d to 2d
         b, c, t = x.shape
-        if t % self.period != 0: # pad first
+        if t % self.period != 0:  # pad first
             n_pad = self.period - (t % self.period)
             x = F.pad(x, (0, n_pad), "reflect")
             t = t + n_pad
@@ -280,4 +285,3 @@ def generator_loss(disc_outputs):
         loss += l
 
     return loss, gen_losses
-

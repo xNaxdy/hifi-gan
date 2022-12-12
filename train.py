@@ -56,11 +56,13 @@ def train(rank, a, h):
         last_epoch = state_dict_do['epoch']
 
     if h.num_gpus > 1:
-        generator = DistributedDataParallel(generator, device_ids=[rank]).to(device)
+        generator = DistributedDataParallel(
+            generator, device_ids=[rank]).to(device)
         mpd = DistributedDataParallel(mpd, device_ids=[rank]).to(device)
         msd = DistributedDataParallel(msd, device_ids=[rank]).to(device)
 
-    optim_g = torch.optim.AdamW(generator.parameters(), h.learning_rate, betas=[h.adam_b1, h.adam_b2])
+    optim_g = torch.optim.AdamW(generator.parameters(
+    ), h.learning_rate, betas=[h.adam_b1, h.adam_b2])
     optim_d = torch.optim.AdamW(itertools.chain(msd.parameters(), mpd.parameters()),
                                 h.learning_rate, betas=[h.adam_b1, h.adam_b2])
 
@@ -68,8 +70,10 @@ def train(rank, a, h):
         optim_g.load_state_dict(state_dict_do['optim_g'])
         optim_d.load_state_dict(state_dict_do['optim_d'])
 
-    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=h.lr_decay, last_epoch=last_epoch)
-    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=h.lr_decay, last_epoch=last_epoch)
+    scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+        optim_g, gamma=h.lr_decay, last_epoch=last_epoch)
+    scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+        optim_d, gamma=h.lr_decay, last_epoch=last_epoch)
 
     training_filelist, validation_filelist = get_dataset_filelist(a)
 
@@ -105,7 +109,7 @@ def train(rank, a, h):
     for epoch in range(max(0, last_epoch), a.training_epochs):
         if rank == 0:
             start = time.time()
-            print("Epoch: {}".format(epoch+1))
+            print("Epoch: {}".format(epoch + 1))
 
         if h.num_gpus > 1:
             train_sampler.set_epoch(epoch)
@@ -116,7 +120,8 @@ def train(rank, a, h):
             x, y, _, y_mel = batch
             x = torch.autograd.Variable(x.to(device, non_blocking=True))
             y = torch.autograd.Variable(y.to(device, non_blocking=True))
-            y_mel = torch.autograd.Variable(y_mel.to(device, non_blocking=True))
+            y_mel = torch.autograd.Variable(
+                y_mel.to(device, non_blocking=True))
             y = y.unsqueeze(1)
 
             y_g_hat = generator(x)
@@ -127,11 +132,13 @@ def train(rank, a, h):
 
             # MPD
             y_df_hat_r, y_df_hat_g, _, _ = mpd(y, y_g_hat.detach())
-            loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(y_df_hat_r, y_df_hat_g)
+            loss_disc_f, losses_disc_f_r, losses_disc_f_g = discriminator_loss(
+                y_df_hat_r, y_df_hat_g)
 
             # MSD
             y_ds_hat_r, y_ds_hat_g, _, _ = msd(y, y_g_hat.detach())
-            loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(y_ds_hat_r, y_ds_hat_g)
+            loss_disc_s, losses_disc_s_r, losses_disc_s_g = discriminator_loss(
+                y_ds_hat_r, y_ds_hat_g)
 
             loss_disc_all = loss_disc_s + loss_disc_f
 
@@ -166,21 +173,24 @@ def train(rank, a, h):
 
                 # checkpointing
                 if steps % a.checkpoint_interval == 0 and steps != 0:
-                    checkpoint_path = "{}/g_{:08d}".format(a.checkpoint_path, steps)
+                    checkpoint_path = "{}/g_{:08d}".format(
+                        a.checkpoint_path, steps)
                     save_checkpoint(checkpoint_path,
                                     {'generator': (generator.module if h.num_gpus > 1 else generator).state_dict()})
-                    checkpoint_path = "{}/do_{:08d}".format(a.checkpoint_path, steps)
-                    save_checkpoint(checkpoint_path, 
+                    checkpoint_path = "{}/do_{:08d}".format(
+                        a.checkpoint_path, steps)
+                    save_checkpoint(checkpoint_path,
                                     {'mpd': (mpd.module if h.num_gpus > 1
-                                                         else mpd).state_dict(),
+                                             else mpd).state_dict(),
                                      'msd': (msd.module if h.num_gpus > 1
-                                                         else msd).state_dict(),
+                                             else msd).state_dict(),
                                      'optim_g': optim_g.state_dict(), 'optim_d': optim_d.state_dict(), 'steps': steps,
                                      'epoch': epoch})
 
                 # Tensorboard summary logging
                 if steps % a.summary_interval == 0:
-                    sw.add_scalar("training/gen_loss_total", loss_gen_all, steps)
+                    sw.add_scalar("training/gen_loss_total",
+                                  loss_gen_all, steps)
                     sw.add_scalar("training/mel_spec_error", mel_error, steps)
 
                 # Validation
@@ -192,7 +202,8 @@ def train(rank, a, h):
                         for j, batch in enumerate(validation_loader):
                             x, y, _, y_mel = batch
                             y_g_hat = generator(x.to(device))
-                            y_mel = torch.autograd.Variable(y_mel.to(device, non_blocking=True))
+                            y_mel = torch.autograd.Variable(
+                                y_mel.to(device, non_blocking=True))
                             y_g_hat_mel = mel_spectrogram(y_g_hat.squeeze(1), h.n_fft, h.num_mels, h.sampling_rate,
                                                           h.hop_size, h.win_size,
                                                           h.fmin, h.fmax_for_loss)
@@ -200,18 +211,22 @@ def train(rank, a, h):
 
                             if j <= 4:
                                 if steps == 0:
-                                    sw.add_audio('gt/y_{}'.format(j), y[0], steps, h.sampling_rate)
-                                    sw.add_figure('gt/y_spec_{}'.format(j), plot_spectrogram(x[0]), steps)
+                                    sw.add_audio(
+                                        'gt/y_{}'.format(j), y[0], steps, h.sampling_rate)
+                                    sw.add_figure(
+                                        'gt/y_spec_{}'.format(j), plot_spectrogram(x[0]), steps)
 
-                                sw.add_audio('generated/y_hat_{}'.format(j), y_g_hat[0], steps, h.sampling_rate)
+                                sw.add_audio(
+                                    'generated/y_hat_{}'.format(j), y_g_hat[0], steps, h.sampling_rate)
                                 y_hat_spec = mel_spectrogram(y_g_hat.squeeze(1), h.n_fft, h.num_mels,
                                                              h.sampling_rate, h.hop_size, h.win_size,
                                                              h.fmin, h.fmax)
                                 sw.add_figure('generated/y_hat_spec_{}'.format(j),
                                               plot_spectrogram(y_hat_spec.squeeze(0).cpu().numpy()), steps)
 
-                        val_err = val_err_tot / (j+1)
-                        sw.add_scalar("validation/mel_spec_error", val_err, steps)
+                        val_err = val_err_tot / (j + 1)
+                        sw.add_scalar(
+                            "validation/mel_spec_error", val_err, steps)
 
                     generator.train()
 
@@ -219,9 +234,10 @@ def train(rank, a, h):
 
         scheduler_g.step()
         scheduler_d.step()
-        
+
         if rank == 0:
-            print('Time taken for epoch {} is {} sec\n'.format(epoch + 1, int(time.time() - start)))
+            print('Time taken for epoch {} is {} sec\n'.format(
+                epoch + 1, int(time.time() - start)))
 
 
 def main():
@@ -232,8 +248,7 @@ def main():
     parser.add_argument('--group_name', default=None)
     parser.add_argument('--input_wavs_dir', default='LJSpeech-1.1/wavs')
     parser.add_argument('--input_mels_dir', default='ft_dataset')
-    parser.add_argument('--input_training_file', default='LJSpeech-1.1/training.txt')
-    parser.add_argument('--input_validation_file', default='LJSpeech-1.1/validation.txt')
+    parser.add_argument('--dataset_dir', default='VCTKRAVDESS')
     parser.add_argument('--checkpoint_path', default='cp_hifigan')
     parser.add_argument('--config', default='')
     parser.add_argument('--training_epochs', default=3100, type=int)
